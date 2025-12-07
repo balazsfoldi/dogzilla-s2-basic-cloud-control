@@ -10,10 +10,10 @@ TOPIC_OUT = "dogzilla/control/pong"
 
 def on_connect(client, userdata, flags, rc):
     if rc == 0:
-        print(f"✅ ROBOT: Csatlakozva a Felhőhöz! ({BROKER}:{PORT})")
+        print(f"ROBOT: Csatlakozva a Felhőhöz! ({BROKER}:{PORT})")
         client.subscribe(TOPIC_IN)
     else:
-        print(f"❌ ROBOT: Hiba a csatlakozáskor (Kód: {rc})")
+        print(f"ROBOT: Hiba a csatlakozáskor (Kód: {rc})")
 
 def on_message(client, userdata, msg):
     payload = msg.payload.decode()
