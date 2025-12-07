@@ -3,6 +3,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
 import sys
+import random
 
 # --- IMPORT BEÁLLÍTÁSOK ---
 sys.path.append('/home/pi/DOGZILLA/DOGZILLALib')
@@ -16,6 +17,14 @@ except ImportError as e:
     class DOGZILLA:
         def action(self, code): print(f"[SIM] Action Code: {code}")
         def move(self, x, y, r): print(f"[SIM] Move: x={x}, y={y}, r={r}")
+        def forward(self, speed): print(f"[SIM] Forward: {speed}")
+        def back(self, speed): print(f"[SIM] Back: {speed}")
+        def left(self, speed): print(f"[SIM] Left: {speed}")
+        def right(self, speed): print(f"[SIM] Right: {speed}")
+        def turnleft(self, speed): print(f"[SIM] Turn Left: {speed}")
+        def turnright(self, speed): print(f"[SIM] Turn Right: {speed}")
+        def stop(self): print("[SIM] STOP")
+        def read_battery(self): return 8.2
 
 class DogzillaAllInOneNode(Node):
     def __init__(self):
@@ -27,14 +36,11 @@ class DogzillaAllInOneNode(Node):
             self.listener_callback,
             10)
 
-	# Uplink (Telemetria küldés) - Erre a topikra küldjük az adatokat
+        # Uplink (Telemetria küldés) - Erre a topikra küldjük az adatokat
         self.state_publisher = self.create_publisher(String, 'robot_state', 10)
         
         # Időzítő: 2 másodpercenként küldjön adatot (0.5 Hz)
         self.timer = self.create_timer(2.0, self.timer_callback)
-
-        self.action_map = { ... } # (MARAD A RÉGI)
-        self.speed = 15
 
         # TRÜKKÖK LISTÁJA (1-20)
         self.action_map = {
@@ -61,7 +67,7 @@ class DogzillaAllInOneNode(Node):
         nem omlik össze, hanem 0-t vagy szimulált adatot ad vissza.
         """
         # Ha nincs hardver könyvtár, szimulálunk
-        if 'DOGZILLA' not in globals():
+        if not HARDWARE_AVAILABLE:
              return round(random.uniform(7.4, 8.4), 2)
 
         # Ha van hardver, megpróbáljuk olvasni
@@ -71,7 +77,6 @@ class DogzillaAllInOneNode(Node):
                 
                 # Néha a hardver None-t vagy furcsa értéket adhat vissza
                 if battery is None:
-                    self.get_logger().warn("Akku olvasás: NULL érték")
                     return 0.0
                 
                 return battery
@@ -79,7 +84,6 @@ class DogzillaAllInOneNode(Node):
         except Exception as e:
             # Itt kapjuk el a SerialException-t!
             self.get_logger().warn(f"Akku olvasási hiba (Serial): {e}")
-            # Hiba esetén ne álljunk meg, adjunk vissza 0-t vagy az utolsó ismert értéket
             return 0.0
             
         return 0.0
@@ -90,7 +94,6 @@ class DogzillaAllInOneNode(Node):
             "status": "online",
             "battery_voltage": self.get_battery_level(),
             "current_speed": self.speed,
-            # Ide bármit betehetsz még: dőlésszög, CPU hőmérséklet, stb.
             "mode": "manual" 
         }
 
@@ -102,7 +105,8 @@ class DogzillaAllInOneNode(Node):
         msg.data = json_payload
         self.state_publisher.publish(msg)
 
-def listener_callback(self, msg):
+    # --- JAVÍTVA: Behúzás korrigálva, most már az osztály része ---
+    def listener_callback(self, msg):
         cmd = msg.data.lower().strip().replace(" ", "_")
         self.get_logger().info(f'Parancs: "{cmd}"')
 
@@ -114,7 +118,6 @@ def listener_callback(self, msg):
         try:
             # --- 1. MOZGÁS PARANCSOK (Javított hívásokkal) ---
             if cmd == "forward":
-                # A move(speed, 0, 0) HELYETT ezt használd:
                 if hasattr(self.dog, 'forward'): 
                     self.dog.forward(self.speed)
                 else:
@@ -144,11 +147,10 @@ def listener_callback(self, msg):
                 if hasattr(self.dog, 'stop'): 
                     self.dog.stop()
                 else:
-                    # Végszükség esetén a move 2 paraméterrel:
                     try: self.dog.move(0, 0)
                     except: pass
 
-            # --- 2. TRÜKKÖK (Ez a rész jó volt) ---
+            # --- 2. TRÜKKÖK ---
             elif cmd in self.action_map:
                 action_code = self.action_map[cmd]
                 self.dog.action(action_code)
@@ -165,11 +167,15 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
-        node.dog.move(0,0,0) # Biztonsági megállás
+        # Stop hívás kilépéskor
+        if hasattr(node, 'dog'):
+            if hasattr(node.dog, 'stop'): node.dog.stop()
+            elif hasattr(node.dog, 'move'): 
+                try: node.dog.move(0,0) # Vagy (0,0,0) attól függ mi működik
+                except: pass
     finally:
         node.destroy_node()
         rclpy.shutdown()
 
 if __name__ == '__main__':
     main()
-
