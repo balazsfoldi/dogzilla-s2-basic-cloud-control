@@ -1,4 +1,5 @@
 import json
+import os
 import rclpy
 from rclpy.node import Node
 
@@ -26,10 +27,16 @@ class RosMqttBridgeNode(Node):
     def __init__(self):
         super().__init__("ros_mqtt_bridge")
 
-        # Paraméterek
-        self.declare_parameter('broker.host', '155.98.37.82')
-        self.declare_parameter('broker.port', 31883)
+        # Környezeti változók beolvasása (vagy alapértelmezett érték, ha nincs)
+        # Kubernetes-ben az 'MQTT_HOST' és 'MQTT_PORT' env változókat állítjuk majd be
+        env_host = os.getenv('MQTT_HOST', '155.98.37.82') 
+        env_port = int(os.getenv('MQTT_PORT', 31883))
 
+        # ROS paraméterek deklarálása a környezeti változók értékeivel
+        self.declare_parameter('broker.host', env_host)
+        self.declare_parameter('broker.port', env_port)
+
+        # Értékek lekérése (így futás közben is módosítható lenne paraméterrel)
         mqtt_host = self.get_parameter('broker.host').get_parameter_value().string_value
         mqtt_port = self.get_parameter('broker.port').get_parameter_value().integer_value
 
