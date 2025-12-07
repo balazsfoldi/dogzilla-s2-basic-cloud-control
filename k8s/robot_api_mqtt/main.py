@@ -9,9 +9,7 @@ from pydantic import BaseModel
 import paho.mqtt.client as mqtt
 
 # ---- KONFIGURÁCIÓ ----
-# A Kubernetesben a 'mosquitto' service nevet használjuk, helyi tesztnél 'localhost' vagy 'broker.hivemq.com'
 DEFAULT_BROKER = "mosquitto" 
-# Ha a környezeti változó nincs beállítva, akkor a default-ot használja
 MQTT_HOST = os.getenv("MQTT_HOST", DEFAULT_BROKER)
 MQTT_PORT = int(os.getenv("MQTT_PORT", "1883"))
 
@@ -19,7 +17,6 @@ MQTT_CMD_TOPIC = os.getenv("MQTT_CMD_TOPIC", "robot/cmd")
 MQTT_STATE_TOPIC = os.getenv("MQTT_STATE_TOPIC", "robot/state")
 MQTT_PING_TOPIC = "dogzilla/control/ping" # Külön téma a méréshez
 
-# ---- FRISSÍTETT PARANCSLISTA (DOGZILLA S2) ----
 VALID_COMMANDS = {
     # 1. Alapvető mozgás
     "forward", "backward", "left", "right", 

@@ -1,6 +1,6 @@
 FROM python:3.12-slim
 
-# Rendszer csomagok (ha kellene, pl. build-hez) – most minimális
+# Rendszer csomagok
 RUN pip install --no-cache-dir --upgrade pip
 
 # Munkakönyvtár a konténerben
