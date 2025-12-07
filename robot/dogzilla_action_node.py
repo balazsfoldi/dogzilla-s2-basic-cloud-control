@@ -2,6 +2,7 @@ import json
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+from geometry_msgs.msg import Twist
 import sys
 import random
 
@@ -14,7 +15,7 @@ try:
 except ImportError as e:
     print(f"HIBA: {e}")
     HARDWARE_AVAILABLE = False
-    # Mock osztály teszteléshez
+    # Mock osztály teszteléshez (hogy PC-n se omoljon össze)
     class DOGZILLA:
         def action(self, code): print(f"[SIM] Action: {code}")
         def forward(self, speed): print(f"[SIM] Forward: {speed}")
@@ -29,17 +30,29 @@ except ImportError as e:
 class DogzillaAllInOneNode(Node):
     def __init__(self):
         super().__init__('dogzilla_action_node')
-        self.get_logger().info('--- DOGZILLA NODE V2 INDUL ---')
+        self.get_logger().info('--- DOGZILLA FULL NODE (CMD + VEL) INDUL ---')
         
-        self.subscription = self.create_subscription(
+        # 1. String parancsok figyelése (Trükkök, egyszerű mozgás)
+        self.sub_str = self.create_subscription(
             String,
             'robot/cmd',
             self.listener_callback,
             10)
 
+        # 2. Twist (cmd_vel) figyelése (Joystick / Folyamatos mozgás)
+        self.sub_vel = self.create_subscription(
+            Twist,
+            'cmd_vel',
+            self.cmd_vel_callback,
+            10)
+
+        # 3. Telemetria publikáló
         self.state_publisher = self.create_publisher(String, 'robot_state', 10)
+        
+        # 4. Időzítő a telemetriához (2 másodpercenként)
         self.timer = self.create_timer(2.0, self.timer_callback)
 
+        # Trükkök leképezése
         self.action_map = {
             "lie_down": 1, "stand_up": 2, "crawl": 3, "turn_around": 4,
             "mark_time": 5, "squat": 6, "turn_roll": 7, "turn_pitch": 8,
@@ -48,16 +61,19 @@ class DogzillaAllInOneNode(Node):
             "pray": 17, "seek": 18, "handshake": 19, "push_up": 20
         }
         
-        self.speed = 15 
+        # Alapértelmezett sebesség
+        self.speed = 10
 
+        # Hardver inicializálás
         if HARDWARE_AVAILABLE:
             self.dog = DOGZILLA()
             self.get_logger().info('Hardver csatlakoztatva')
         else:
             self.dog = DOGZILLA()
-            self.get_logger().warn('Szimulált mód')
+            self.get_logger().warn('️Szimulált mód')
 
     def get_battery_level(self):
+        """ Biztonságos akku olvasás """
         if not HARDWARE_AVAILABLE: return 8.2
         try:
             if hasattr(self.dog, 'read_battery'):
@@ -68,23 +84,58 @@ class DogzillaAllInOneNode(Node):
         return 0.0
 
     def timer_callback(self):
+        """ Telemetria küldése JSON formátumban """
         telemetry_data = {
             "status": "online",
-            "battery_percantage": self.get_battery_level(),
+            "battery_voltage": self.get_battery_level(),
             "current_speed": self.speed,
+            "mode": "hybrid (cmd+vel)" 
         }
         msg = String()
         msg.data = json.dumps(telemetry_data)
         self.state_publisher.publish(msg)
 
+    def cmd_vel_callback(self, msg):
+        """ 
+        ROS Twist üzenet feldolgozása (Joystick logika).
+        Ez teszi lehetővé a robot/cmd/vel MQTT téma használatát.
+        """
+        if not hasattr(self, 'dog'): return
+
+        vx = msg.linear.x
+        wz = msg.angular.z
+        
+        # Küszöbérték (hogy a zaj miatt ne mozogjon)
+        threshold = 0.1
+
+        try:
+            if vx > threshold:
+                if hasattr(self.dog, 'forward'): self.dog.forward(self.speed)
+            elif vx < -threshold:
+                if hasattr(self.dog, 'back'): self.dog.back(self.speed)
+            elif wz > threshold:
+                # ROS koordináta rendszerben a pozitív Z forgás balra van
+                if hasattr(self.dog, 'turnleft'): self.dog.turnleft(self.speed)
+            elif wz < -threshold:
+                # Negatív Z forgás jobbra van
+                if hasattr(self.dog, 'turnright'): self.dog.turnright(self.speed)
+            else:
+                # Ha minden 0, akkor megállás
+                if hasattr(self.dog, 'stop'): self.dog.stop()
+                
+        except Exception as e:
+            self.get_logger().error(f"CmdVel Hiba: {e}")
+
     def listener_callback(self, msg):
+        """ String parancsok feldolgozása (Trükkök és diszkrét mozgás)
+        """
         cmd = msg.data.lower().strip().replace(" ", "_")
         self.get_logger().info(f'Parancs: "{cmd}"')
 
         if not hasattr(self, 'dog'): return
 
         try:
-            # MOZGÁS (Biztonságos hívások)
+            # MOZGÁS (Biztonságos függvényhívásokkal)
             if cmd == "forward":
                 if hasattr(self.dog, 'forward'): self.dog.forward(self.speed)
             elif cmd == "backward":
@@ -103,6 +154,7 @@ class DogzillaAllInOneNode(Node):
             # TRÜKKÖK
             elif cmd in self.action_map:
                 self.dog.action(self.action_map[cmd])
+            
             else:
                 self.get_logger().warn(f"Ismeretlen: {cmd}")
 
@@ -115,6 +167,7 @@ def main(args=None):
     try:
         rclpy.spin(node)
     except KeyboardInterrupt:
+        # Biztonsági megállás kilépéskor
         if hasattr(node, 'dog') and hasattr(node.dog, 'stop'):
             node.dog.stop()
     finally:
