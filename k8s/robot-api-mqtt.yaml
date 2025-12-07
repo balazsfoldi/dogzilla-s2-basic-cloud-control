@@ -15,7 +15,7 @@ spec:
       containers:
         - name: robot-api-mqtt
           image: robot-api-mqtt:latest
-          imagePullPolicy: Never   # helyi image kind-ben
+          imagePullPolicy: Always
           env:
             - name: MQTT_HOST
               value: "mosquitto"   # a Service neve
@@ -40,4 +40,4 @@ spec:
     - name: http
       port: 8000           # cluster-en belüli port
       targetPort: 8000     # konténer port
-      nodePort: 30081      # hostról: localhost:30081
+      nodePort: 30081      # hostról

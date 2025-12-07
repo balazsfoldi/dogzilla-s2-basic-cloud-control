@@ -1,3 +1,4 @@
+import json
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
@@ -26,6 +27,15 @@ class DogzillaAllInOneNode(Node):
             self.listener_callback,
             10)
 
+	# Uplink (Telemetria küldés) - Erre a topikra küldjük az adatokat
+        self.state_publisher = self.create_publisher(String, 'robot_state', 10)
+        
+        # Időzítő: 2 másodpercenként küldjön adatot (0.5 Hz)
+        self.timer = self.create_timer(2.0, self.timer_callback)
+
+        self.action_map = { ... } # (MARAD A RÉGI)
+        self.speed = 15
+
         # TRÜKKÖK LISTÁJA (1-20)
         self.action_map = {
             "lie_down": 1, "stand_up": 2, "crawl": 3, "turn_around": 4,
@@ -45,34 +55,99 @@ class DogzillaAllInOneNode(Node):
             self.dog = DOGZILLA()
             self.get_logger().warn('⚠️ Dogzilla Node kész: SZIMULÁLT MÓD')
 
+    def get_battery_level(self):
+        """
+        Biztonságos akku olvasás. Ha hiba van (SerialException),
+        nem omlik össze, hanem 0-t vagy szimulált adatot ad vissza.
+        """
+        # Ha nincs hardver könyvtár, szimulálunk
+        if 'DOGZILLA' not in globals():
+             return round(random.uniform(7.4, 8.4), 2)
+
+        # Ha van hardver, megpróbáljuk olvasni
+        try:
+            if hasattr(self.dog, 'read_battery'):
+                battery = self.dog.read_battery()
+                
+                # Néha a hardver None-t vagy furcsa értéket adhat vissza
+                if battery is None:
+                    self.get_logger().warn("Akku olvasás: NULL érték")
+                    return 0.0
+                
+                return battery
+            
+        except Exception as e:
+            # Itt kapjuk el a SerialException-t!
+            self.get_logger().warn(f"Akku olvasási hiba (Serial): {e}")
+            # Hiba esetén ne álljunk meg, adjunk vissza 0-t vagy az utolsó ismert értéket
+            return 0.0
+            
+        return 0.0
+
+    def timer_callback(self):
+        # 1. Adatok összegyűjtése egy struktúrába
+        telemetry_data = {
+            "status": "online",
+            "battery_voltage": self.get_battery_level(),
+            "current_speed": self.speed,
+            # Ide bármit betehetsz még: dőlésszög, CPU hőmérséklet, stb.
+            "mode": "manual" 
+        }
+
+        # 2. Átalakítás JSON Stringgé
+        json_payload = json.dumps(telemetry_data)
+
+        # 3. Publikálás a ROS hálózatba
+        msg = String()
+        msg.data = json_payload
+        self.state_publisher.publish(msg)
+
     def listener_callback(self, msg):
         cmd = msg.data.lower().strip().replace(" ", "_")
         self.get_logger().info(f'Parancs: "{cmd}"')
 
-        # 1. ESET: MOZGÁS PARANCSOK
-        if cmd == "forward":
-            self.dog.move(self.speed, 0, 0) # X=sebesség, Y=0, R=0
-        elif cmd == "backward":
-            self.dog.move(-self.speed, 0, 0) # X=negatív
-        elif cmd == "left":
-            self.dog.move(0, self.speed, 0) # Y=sebesség (oldalazás balra)
-        elif cmd == "right":
-            self.dog.move(0, -self.speed, 0) # Y=negatív (oldalazás jobbra)
-        elif cmd == "turn_left":
-            self.dog.move(0, 0, self.speed) # R=forgás
-        elif cmd == "turn_right":
-            self.dog.move(0, 0, -self.speed)
-        elif cmd == "stop":
-            self.dog.move(0, 0, 0) # Minden 0 -> Megáll
+        # Ha nincs hardver, ne csináljunk semmit (vagy szimuláljunk)
+        if not hasattr(self, 'dog'):
+            return
 
-        # 2. ESET: TRÜKKÖK
-        elif cmd in self.action_map:
-            action_code = self.action_map[cmd]
-            self.dog.action(action_code)
+        try:
+            # 1. ESET: MOZGÁS PARANCSOK (Dedikált függvényekkel)
+            if cmd == "forward":
+                if hasattr(self.dog, 'forward'):         self.dog.forward(self.speed)
+                else: self.dog.move(self.speed, 0) # Fallback ha mégis move kell
+                
+            elif cmd == "backward":
+                if hasattr(self.dog, 'back'): self.dog.back(self.speed)
+                else: self.dog.move(-self.speed, 0)
+                
+            elif cmd == "left":
+                if hasattr(self.dog, 'left'): self.dog.left(self.speed)
+                else: self.dog.move(0, self.speed)
+                
+            elif cmd == "right":
+                if hasattr(self.dog, 'right'): self.dog.right(self.speed)
+                else: self.dog.move(0, -self.speed)
+                
+            elif cmd == "turn_left":
+                if hasattr(self.dog, 'turnleft'): self.dog.turnleft(self.speed)
+                
+            elif cmd == "turn_right":
+                if hasattr(self.dog, 'turnright'): self.dog.turnright(self.speed)
+                
+            elif cmd == "stop":
+                if hasattr(self.dog, 'stop'): self.dog.stop()
+                else: self.dog.move(0, 0) # Vagy move(0,0,0) helyett move(0,0)
 
-        else:
-            self.get_logger().warn(f"Ismeretlen parancs: {cmd}")
+            # 2. ESET: TRÜKKÖK
+            elif cmd in self.action_map:
+                action_code = self.action_map[cmd]
+                self.dog.action(action_code)
 
+            else:
+                self.get_logger().warn(f"Ismeretlen parancs: {cmd}")
+                
+        except Exception as e:
+            self.get_logger().error(f"Hiba a végrehajtásban: {e}")
 def main(args=None):
     rclpy.init(args=args)
     node = DogzillaAllInOneNode()
@@ -86,3 +161,4 @@ def main(args=None):
 
 if __name__ == '__main__':
     main()
+
