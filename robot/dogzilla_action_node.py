@@ -106,7 +106,7 @@ def listener_callback(self, msg):
         cmd = msg.data.lower().strip().replace(" ", "_")
         self.get_logger().info(f'Parancs: "{cmd}"')
 
-        # Ha nincs hardver, vagy mock módban vagyunk, ne omoljon össze
+        # Ha nincs hardver kapcsolat, ne omoljon össze
         if not hasattr(self, 'dog'):
             self.get_logger().warn("Nincs hardver kapcsolat!")
             return
@@ -114,11 +114,11 @@ def listener_callback(self, msg):
         try:
             # --- 1. MOZGÁS PARANCSOK (Javított hívásokkal) ---
             if cmd == "forward":
-                # A move(speed, 0, 0) helyett:
+                # A move(speed, 0, 0) HELYETT ezt használd:
                 if hasattr(self.dog, 'forward'): 
                     self.dog.forward(self.speed)
-                else: 
-                    self.get_logger().error("Nincs 'forward' függvény a könyvtárban!")
+                else:
+                    self.get_logger().error("HIBA: Nincs 'forward' függvény!")
 
             elif cmd == "backward":
                 if hasattr(self.dog, 'back'): 
@@ -141,15 +141,14 @@ def listener_callback(self, msg):
                     self.dog.turnright(self.speed)
 
             elif cmd == "stop":
-                # Stop esetén általában nincs paraméter, vagy move(0, 0) kell
                 if hasattr(self.dog, 'stop'): 
                     self.dog.stop()
                 else:
-                    # Megpróbáljuk a move-ot kevesebb paraméterrel, ha a stop nincs
+                    # Végszükség esetén a move 2 paraméterrel:
                     try: self.dog.move(0, 0)
                     except: pass
 
-            # --- 2. TRÜKKÖK (Ez a rész változatlan) ---
+            # --- 2. TRÜKKÖK (Ez a rész jó volt) ---
             elif cmd in self.action_map:
                 action_code = self.action_map[cmd]
                 self.dog.action(action_code)
