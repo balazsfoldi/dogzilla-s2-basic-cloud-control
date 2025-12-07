@@ -102,52 +102,64 @@ class DogzillaAllInOneNode(Node):
         msg.data = json_payload
         self.state_publisher.publish(msg)
 
-    def listener_callback(self, msg):
+def listener_callback(self, msg):
         cmd = msg.data.lower().strip().replace(" ", "_")
         self.get_logger().info(f'Parancs: "{cmd}"')
 
-        # Ha nincs hardver, ne csináljunk semmit (vagy szimuláljunk)
+        # Ha nincs hardver, vagy mock módban vagyunk, ne omoljon össze
         if not hasattr(self, 'dog'):
+            self.get_logger().warn("Nincs hardver kapcsolat!")
             return
 
         try:
-            # 1. ESET: MOZGÁS PARANCSOK (Dedikált függvényekkel)
+            # --- 1. MOZGÁS PARANCSOK (Javított hívásokkal) ---
             if cmd == "forward":
-                if hasattr(self.dog, 'forward'):         self.dog.forward(self.speed)
-                else: self.dog.move(self.speed, 0) # Fallback ha mégis move kell
-                
-            elif cmd == "backward":
-                if hasattr(self.dog, 'back'): self.dog.back(self.speed)
-                else: self.dog.move(-self.speed, 0)
-                
-            elif cmd == "left":
-                if hasattr(self.dog, 'left'): self.dog.left(self.speed)
-                else: self.dog.move(0, self.speed)
-                
-            elif cmd == "right":
-                if hasattr(self.dog, 'right'): self.dog.right(self.speed)
-                else: self.dog.move(0, -self.speed)
-                
-            elif cmd == "turn_left":
-                if hasattr(self.dog, 'turnleft'): self.dog.turnleft(self.speed)
-                
-            elif cmd == "turn_right":
-                if hasattr(self.dog, 'turnright'): self.dog.turnright(self.speed)
-                
-            elif cmd == "stop":
-                if hasattr(self.dog, 'stop'): self.dog.stop()
-                else: self.dog.move(0, 0) # Vagy move(0,0,0) helyett move(0,0)
+                # A move(speed, 0, 0) helyett:
+                if hasattr(self.dog, 'forward'): 
+                    self.dog.forward(self.speed)
+                else: 
+                    self.get_logger().error("Nincs 'forward' függvény a könyvtárban!")
 
-            # 2. ESET: TRÜKKÖK
+            elif cmd == "backward":
+                if hasattr(self.dog, 'back'): 
+                    self.dog.back(self.speed)
+
+            elif cmd == "left":
+                if hasattr(self.dog, 'left'): 
+                    self.dog.left(self.speed)
+
+            elif cmd == "right":
+                if hasattr(self.dog, 'right'): 
+                    self.dog.right(self.speed)
+
+            elif cmd == "turn_left":
+                if hasattr(self.dog, 'turnleft'): 
+                    self.dog.turnleft(self.speed)
+
+            elif cmd == "turn_right":
+                if hasattr(self.dog, 'turnright'): 
+                    self.dog.turnright(self.speed)
+
+            elif cmd == "stop":
+                # Stop esetén általában nincs paraméter, vagy move(0, 0) kell
+                if hasattr(self.dog, 'stop'): 
+                    self.dog.stop()
+                else:
+                    # Megpróbáljuk a move-ot kevesebb paraméterrel, ha a stop nincs
+                    try: self.dog.move(0, 0)
+                    except: pass
+
+            # --- 2. TRÜKKÖK (Ez a rész változatlan) ---
             elif cmd in self.action_map:
                 action_code = self.action_map[cmd]
                 self.dog.action(action_code)
 
             else:
                 self.get_logger().warn(f"Ismeretlen parancs: {cmd}")
-                
+
         except Exception as e:
-            self.get_logger().error(f"Hiba a végrehajtásban: {e}")
+            self.get_logger().error(f"Kritikus hiba a végrehajtásban: {e}")
+            
 def main(args=None):
     rclpy.init(args=args)
     node = DogzillaAllInOneNode()
