@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: robot-api-mqtt
-          image: robot-api-mqtt:latest
+          image: fbalu0911/fastapi-mqtt:latest
           imagePullPolicy: Always
           env:
             - name: MQTT_HOST
