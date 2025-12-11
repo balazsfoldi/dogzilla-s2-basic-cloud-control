@@ -7,14 +7,14 @@ from datetime import datetime
 
 # --- CONFIG: ÉLES RENDSZER ---
 # 1. Trigger: HTTP kérés a FastAPI-nak
-API_URL = "http://155.98.37.82:30081/ping"
+API_URL = "http://10.19.8.25:30081/ping"
 
 # 2. Visszajelzés: MQTT a Robot felől
-MQTT_BROKER = "155.98.37.82"
+MQTT_BROKER = "10.19.8.25"
 MQTT_PORT = 31883
 TOPIC_RECV = "dogzilla/control/pong"
 
-MESSAGE_COUNT = 500
+MESSAGE_COUNT = 200
 TIMEOUT = 5.0
 
 # Változók
@@ -22,7 +22,6 @@ rtt_values = []
 csv_data = [] # Adatok tárolása a mentéshez
 lost_packets = 0
 current_ping_start = 0
-waiting_for_pong = False
 last_latency = 0.0 # Segédváltozó az aktuális méréshez
 
 def on_connect(client, userdata, flags, rc):
