@@ -1,0 +1,23 @@
+services:
+
+  mosquitto:
+    image: eclipse-mosquitto
+    ports:
+      - "1883:1883"
+
+  robot-api:
+    build:
+      context: ./k8s/robot_api_mqtt
+    ports:
+      - "8000:8000"
+    environment:
+      MQTT_HOST: mosquitto
+      MQTT_PORT: 1883
+    depends_on:
+      - mosquitto
+
+  mock-robot:
+    build:
+      context: ./robot/mock_robot
+    depends_on:
+      - mosquitto
